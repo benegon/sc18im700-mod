@@ -1,0 +1,11 @@
+# MacOS
+.DS_Store
+
+# Build
+.tmp_versions/
+*.ko
+*.o
+Module.symvers
+modules.order
+*.mod.c
+*.cmd
