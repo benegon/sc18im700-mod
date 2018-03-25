@@ -2,7 +2,9 @@
  * sc18im700.c - SC18IM700 I2C adaptor driver
  *
  * This file is derived from linux/drivers/net/can/slcan.c
- *
+ * and linux/dirvers/i2c/bcm2835.cs
+ * as well as this patch https://patchwork.kernel.org/patch/4224461/
+
  * sc18im700.c Author  : James Bryant <james@uberfoo.net>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -121,9 +123,10 @@ static int sc18im700_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 		DEB1(printk(KERN_DEBUG "sc18im700: Operation: %s, "
 				"Addr: 0x%02x, Length: %d, "
 				"Current Transfer No: %d, "
-				"Total No of transfer: %d\n",
+				"Total No of transfer: %d, "
+        "Flags: 0x%02x",
 				(msg->flags & I2C_M_RD) ? "Read" : "Write",
-				msg->addr, msg->len, (curmsg + 1), num));
+				msg->addr, msg->len, (curmsg + 1), num, msg->flags));
 
     if (msg->len > max_message_len) {
       printk(KERN_ERR "sc18im700: message length %d is greater than allowed (%d)\n", msg->len, max_message_len);
@@ -137,6 +140,8 @@ static int sc18im700_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
     // Check if this is a read operation
 		if (msg->flags & I2C_M_RD)
 			addr |= 1;
+		if (msg->flags & I2C_M_REV_DIR_ADDR)
+			addr ^= 1;
 
     // Write out the beginning of the message
     pos = sl->xbuff;
@@ -204,6 +209,7 @@ static void sc18im700_transmit(struct work_struct *work)
 		/* Now serial buffer is almost free & we can start
 		 * transmission of another packet */
 		clear_bit(TTY_DO_WRITE_WAKEUP, &sl->tty->flags);
+    complete(&sl->xcompletion);
 		spin_unlock_bh(&sl->lock);
 		return;
 	}
@@ -216,8 +222,7 @@ static void sc18im700_transmit(struct work_struct *work)
 
 static u32 sc18im700_i2c_func(struct i2c_adapter *adap)
 {
-  return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL |
-          I2C_FUNC_PROTOCOL_MANGLING;
+  return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
 }
 
 static const struct i2c_algorithm sc18im700_i2c_algo = {
@@ -230,9 +235,17 @@ static int sc18im700_open(struct tty_struct *tty)
 	struct sc18im700_dev *sl;
 	int err;
   struct i2c_adapter *adap;
+  //struct termios tattr;
+
+  tty->termios.c_lflag &= ~(ICANON | ECHO);
 
 	if (tty->ops->write == NULL)
 		return -EOPNOTSUPP;
+
+  if (tty->ops->set_termios == NULL)
+    return -EOPNOTSUPP;
+
+  tty->ops->set_termios(tty, &tty->termios);
 
   sl = tty->disc_data;
 
@@ -251,7 +264,7 @@ static int sc18im700_open(struct tty_struct *tty)
 
   init_completion(&sl->xcompletion);
   init_completion(&sl->rcompletion);
-  
+
   spin_lock_init(&sl->lock);
 	INIT_WORK(&sl->tx_work, sc18im700_transmit);
 
