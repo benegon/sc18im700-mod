@@ -93,16 +93,16 @@ struct sc18im700_dev {
   int                    magic;
   struct tty_struct      *tty;                    /* ptr to TTY structure     */
   struct i2c_adapter     adapter;                 /* ptr to I2C structure     */
-  struct work_struct	   tx_work;	                /* Flushes transmit buffer  */
-  unsigned char		       *rbuff;	                /* receiver buffer          */
-  int			               rcount;                  /* received chars counter   */
-  unsigned char		       *xbuff;                  /* transmitter buffer	      */
-  unsigned char		       *xhead;                  /* pointer to next XMIT byte*/
-  int			               xleft;                   /* bytes left in XMIT queue */
-  spinlock_t             lock;
+  struct work_struct     tx_work;                 /* Flushes transmit buffer  */
+  unsigned char          *rbuff;                  /* receiver buffer          */
+  int                    rcount;                  /* received chars counter   */
+  unsigned char          *xbuff;                  /* transmitter buffer	      */
+  unsigned char          *xhead;                  /* pointer to next XMIT byte*/
+  int                    xleft;                   /* bytes left in XMIT queue */
+  spinlock_t             lock;                    /* xmit lock                */
   struct completion      xcompletion;             /* read completion          */
-  struct completion      rcompletion;             /* XMIT completion          */
-  struct i2c_msg         *curr_msg;
+  struct completion      rcompletion;             /* xmit completion          */
+  struct i2c_msg         *curr_msg;               /* the current message      */
 };
 
 static const struct i2c_adapter_quirks sc18im700_i2c_quirks = {
