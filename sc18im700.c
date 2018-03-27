@@ -83,10 +83,10 @@ MODULE_PARM_DESC(debug_level, "The verbosity level of debug messaging.");
 
 #define SC18IM700_STAT_REG   0x0A
 
-#define SC18IM700_OK           0x00
-#define SC18IM700_NACK_ON_ADDR 0x01
-#define SC18IM700_NACK_ON_DATA 0x02
-#define SC18IM700_TIMEOUT      0x08
+#define SC18IM700_OK           0xF0
+#define SC18IM700_NACK_ON_ADDR 0xF1
+#define SC18IM700_NACK_ON_DATA 0xF2
+#define SC18IM700_TIMEOUT      0xF8
 #define DEB1(x) if (debug_level >= 1) x
 
 struct sc18im700_dev {
@@ -125,6 +125,7 @@ static int sc18im700_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
   while (curmsg < num) {
     numbytes = 0;
     msg = &msgs[curmsg];
+    sl->curr_msg = msg;
 
     DEB1(printk(KERN_DEBUG "sc18im700: Operation: %s, "
       "Addr: 0x%02x, Length: %d, "
@@ -379,6 +380,8 @@ static void sc18im700_receive_buf(struct tty_struct *tty,
   if (!sl || sl->magic != SC18IM700_MAGIC)
     return;
 
+  spin_lock_bh(&sl->lock);
+
   /* Read the characters out of the buffer */
   while (count--) {
     if (fp && *fp++) {
@@ -390,17 +393,18 @@ static void sc18im700_receive_buf(struct tty_struct *tty,
   if (sl->rcount >= sl->curr_msg->len) {
     complete(&sl->rcompletion);
   }
+  spin_unlock_bh(&sl->lock);
 }
 
 
 static struct tty_ldisc_ops sc18im700_ldisc = {
-  .owner		= THIS_MODULE,
-  .magic		= TTY_LDISC_MAGIC,
-  .name		  = "sc18im700",
-  .open		  = sc18im700_open,
-  .close		= sc18im700_close,
-  .hangup		= sc18im700_hangup,
-  .ioctl		= sc18im700_ioctl,
+  .owner    = THIS_MODULE,
+  .magic    = TTY_LDISC_MAGIC,
+  .name     = "sc18im700",
+  .open     = sc18im700_open,
+  .close    = sc18im700_close,
+  .hangup   = sc18im700_hangup,
+  .ioctl    = sc18im700_ioctl,
   .receive_buf	= sc18im700_receive_buf,
   .write_wakeup	= sc18im700_write_wakeup,
 };
